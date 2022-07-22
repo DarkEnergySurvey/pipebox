@@ -477,12 +477,14 @@ class WideField(PipeQuery):
                 df.insert(len(df.columns),'band', None)
                 df.insert(len(df.columns),'unitname',None)
                 df.insert(len(df.columns),'obstype',None)
+                df.insert(len(df.columns),'filename',None)
             except:
                 pass
             df.loc[index,'nite'] = nite
             df.loc[index,'band'] = band
             df.loc[index,'unitname'] = 'D' + str(expnum).zfill(8)
             df.loc[index,'obstype'] = obstype
+            df.loc[index,'filename'] = filename
         return df
 
     def check_submitted(self,unitname,reqnum):

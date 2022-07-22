@@ -129,7 +129,7 @@ class PipeLine(object):
                 setattr(self.args,c, group[c].unique()[0])
 
             #Add filename base, useful for NIR campaign, for which filename does not correspond to expnum
-            if self.nir:
+            if self.args.nir:
                 self.args.nirfilename = group.filename.unique()[0].split("_st.")[0]
 
 
@@ -431,11 +431,11 @@ class WideField(PipeLine):
         # Setting global parameters
         self.args = pipeargs.WideField().cmdline()
         self.args.pipeline = "widefield"
-        if 'N' in self.args.campaign:
+        if 'N' in self.args.campaign and not self.args.nir:
             self.args.desstat_pipeline = "firstcut"
         else:
             self.args.desstat_pipeline = "finalcut" 
-
+        
         super(WideField,self).update_args(self.args)
         self.args.output_name_keys = ['nite','expnum','band']
         self.args.cur = pipequery.WideField(self.args.db_section)
@@ -500,7 +500,6 @@ class WideField(PipeLine):
         elif self.args.RA and self.args.Dec:
             self.args.exposure_list = self.args.cur.get_expnums_from_radec(self.args.RA, self.args.Dec)
             self.args.dataframe = pd.DataFrame(self.args.exposure_list, columns=['expnum'])
-        
         if self.args.check_logs:
             interactive = self.args.interactive
             self.args.dataframe = self.args.cur.check_log_files(self.args.dataframe, interactive=interactive)
@@ -510,8 +509,8 @@ class WideField(PipeLine):
             self.args.dataframe = self.args.dataframe[~self.args.dataframe.expnum.isin(self.args.exclude_list)]
         
         # Update dataframe for each exposure and add band,nite if not exists
-        try:
-            self.args.dataframe = self.args.cur.update_df(self.args.dataframe)
+        try:     
+            self.args.dataframe = self.args.cur.update_df(self.args)
             self.args.dataframe = self.args.dataframe.fillna(False)
         except: 
             pass
