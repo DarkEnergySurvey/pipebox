@@ -140,7 +140,7 @@ class PipeQuery(object):
             query = "select distinct expnum, processed from ops_auto_queue where processed!=1 offset %i rows  fetch next 1000 rows only" % (iter*1000)
             self.cur.execute(query)
             ops_auto = pd.DataFrame(self.cur.fetchall(), columns=['expnum','processed'])
-            unitnames = ['D00'+ str(e) for e in ops_auto['expnum'].values]
+            unitnames = ['D'+ str(e).zfill(8) for e in ops_auto['expnum'].values]
             
             if len(unitnames) < 1000:
                 query_db = False
@@ -158,7 +158,7 @@ class PipeQuery(object):
                 df = df.fillna(-99)
 
                 for u in df['unitname'].unique():
-                    expnum = u.split('D00')[1]
+                    expnum = str(int(u.split('D0')[1]))
                     statuses = list(df[(df.unitname == u)]['status'].values)
                     failed_atts = [i for i in statuses if i >=1]
                     if 0 in statuses:
@@ -459,13 +459,19 @@ class WideField(PipeQuery):
             results = self.cur.fetchall()[0]
             yield results
 
-    def update_df(self,df):
+    def update_df(self,args):
         """ Takes a pandas dataframe and for each exposure add column:value
             band and nite. Returns dataframe"""
+        df = args.dataframe
         for index,row in df.iterrows():
-            expnum_info = "select distinct expnum, band, nite, obstype from exposure where expnum='%s'" % row['expnum']
+            if args.nir:
+                print("Checking the NIR_PAW table")
+                expnum_info = "select distinct expnum, band, nite, obstype, filename from nir_paw where obstype='object' and expnum='%s'" % row['expnum']
+            else:
+                expnum_info = "select distinct expnum, band, nite, obstype, filename from exposure where expnum='%s'" % row['expnum']
+            
             self.cur.execute(expnum_info)
-            expnum,band,nite,obstype = self.cur.fetchall()[0]
+            expnum,band,nite,obstype,filename = self.cur.fetchall()[0]
             try:
                 df.insert(len(df.columns),'nite', None)
                 df.insert(len(df.columns),'band', None)
@@ -475,7 +481,7 @@ class WideField(PipeQuery):
                 pass
             df.loc[index,'nite'] = nite
             df.loc[index,'band'] = band
-            df.loc[index,'unitname'] = 'D00' + str(expnum)
+            df.loc[index,'unitname'] = 'D' + str(expnum).zfill(8)
             df.loc[index,'obstype'] = obstype
         return df
 
@@ -544,7 +550,7 @@ class WideField(PipeQuery):
             if temp_df.shape[0] < 1000:
                 query_db = False
  
-            unitnames = ['D00'+str(e) for e  in temp_df.expnum.values]
+            unitnames = ['D'+str(e).zfill(8) for e  in temp_df.expnum.values]
 
             submitted = "select unitname,status from pfw_attempt a, task t, pfw_request r where r.reqnum=a.reqnum "
             submitted += "and t.id=a.task_id and r.project='%s' and unitname in ('%s')" % (project,"','".join(unitnames))
@@ -556,7 +562,7 @@ class WideField(PipeQuery):
                 df_fails = df_fails.fillna(-99)
                 for u in df_fails['unitname'].unique():
                     udf = df_fails[df_fails.unitname == u]
-                    e_no = int(u.split('D00')[1])
+                    e_no = int(u.split('D0')[1])
                     # ignore any exposures that are currently running or successful or failed at least three times
                     if any([-99 in udf.status.values, 0 in udf.status.values, udf.shape[0] >= n_failed]):
                         temp_df = temp_df[temp_df['expnum'] != e_no]
@@ -670,7 +676,7 @@ class WideField(PipeQuery):
         import subprocess as sp
         # Find log files in /deca_archive and try to locate error
         dict = {}
-        unitnames = ['D00'+str(e) for e in expnum_df['expnum'].values]
+        unitnames = ['D'+str(e).zfill(8) for e in expnum_df['expnum'].values]
 
         print("Querying database...")
         query = "select unitname,a.archive_path,status from pfw_attempt a,"
@@ -704,7 +710,7 @@ class WideField(PipeQuery):
         no_of_exps = len(info)
         for nb, unitname in enumerate(info):
             os.system('clear')
-            expnum = unitname.split("D00")[1]
+            expnum = int(unitname.split("D0")[1])
             print("\n ##########\n %i/%i  %s \n ##########\n" % (nb+1, no_of_exps, unitname))
                 
             if not interactive: # Check statuses and catalogs in /deca_archive

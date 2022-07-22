@@ -67,6 +67,7 @@ class PipeArgs(object):
         parser.add('--reqnum',help='Part of processing unique identifier. Tied to JIRA ticket \
                              number')
         parser.add('--decade', action='store_true', help='Uses the DECADE subsection of WCL')
+        parser.add('--nir', action='store_true', help='Handles widefield for NIR data')
     
         # EUPS arguments
         parser.add('--eups_stack',action='append',nargs='+', required=True,help='EUPS production stack, \
