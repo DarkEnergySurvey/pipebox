@@ -127,6 +127,12 @@ class PipeLine(object):
             # Adding column values to args
             for c in columns:
                 setattr(self.args,c, group[c].unique()[0])
+
+            #Add filename base, useful for NIR campaign, for which filename does not correspond to expnum
+            if self.nir:
+                self.args.nirfilename = group.filename.unique()[0].split("_st.")[0]
+
+
             # Making output directories and filenames
             if self.args.out:
                 if not os.path.isdir(self.args.out):
