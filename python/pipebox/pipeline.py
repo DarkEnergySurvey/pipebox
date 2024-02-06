@@ -5,7 +5,7 @@ import time
 import pandas as pd
 import numpy as np
 import string
-from pipebox import pipequery,pipeargs,pipeutils,jira_utils,nitelycal_lib
+from pipebox import pipequery,pipeargs,pipeutils,jira_utils,nitelycal_lib, reqnum_utils
 
 class PipeLine(object):
     # Setup key arguments and environment here instead of write_*.sh
@@ -53,7 +53,6 @@ class PipeLine(object):
         # If ngix -- cycle trough server's list
         if self.args.nginx:
             self.args.nginx_server = pipeutils.cycle_list_index(index,['desnginx', 'dessub'])
-    
         if args.configfile: 
             if '/' in args.configfile:
                 pass
@@ -88,7 +87,8 @@ class PipeLine(object):
 
     def prepare_submission(self, name, group,columns):
         # Setting jira parameters
-        self.args.reqnum, self.args.jira_parent= group['reqnum'].unique()[0],group['jira_parent'].unique()[0]
+        if not self.args.ignore_jira:
+            self.args.reqnum, self.args.jira_parent= group['reqnum'].unique()[0],group['jira_parent'].unique()[0]
 
         self.args.unitname = group['unitname'].unique()[0]
         if self.args.pipeline != 'multiepoch' and  self.args.pipeline != 'photoz':
@@ -99,19 +99,20 @@ class PipeLine(object):
         else:
             if self.args.pipeline == 'widefield':
                 firstexpnum = group['expnum'].unique()[0]
-                self.args.epoch_name = self.args.cur.find_epoch(firstexpnum)
+                self.args.epoch_name = self.args.cur.find_epoch(firstexpnum, decade=self.args.decade)
             elif self.args.pipeline != 'multiepoch' and self.args.pipeline != 'photoz':
                 firstexpnum = group['firstexp'].unique()[0]
-                self.args.epoch_name = self.args.cur.find_epoch(firstexpnum)
+                self.args.epoch_name = self.args.cur.find_epoch(firstexpnum, decade=self.args.decade)
             elif self.args.pipeline == 'prebpm':
                 firstexpnum = group['expnum'].unique()[0]
-                self.args.epoch_name = self.args.cur.find_epoch(firstexpnum)
+                self.args.epoch_name = self.args.cur.find_epoch(firstexpnum, decade=self.args.decade)
             else:
                 self.args.epoch_name = firstexpnum = None
         if self.args.epoch_name:
             self.args.cal_df = self.args.cur.get_cals_from_epoch(self.args.epoch_name,
                                                                   band = self.args.band,
-                                                                  campaign = self.args.campaign)
+                                                                  campaign = self.args.campaign,
+                                                                  decade=self.args.decade)
         # Adding column values to args
         for c in columns:
             setattr(self.args,c, group[c].unique()[0])
@@ -150,9 +151,8 @@ class PipeLine(object):
         self.args.rendered_template_path.append(output_path)
         if not self.args.savefiles:
             #super(self.__class__,self).submit(self.args)
-
             # Make comment in JIRA
-            if not self.args.ignore_jira:
+            if  self.args.ignore_jira==False and self.args.assign_reqnum==False:
                 connected = False
                 while not connected:
                     num_retry = 1
@@ -217,11 +217,11 @@ class PipeLine(object):
                             its = its+1
                         else:
                             its=0
-                            print("Sleeping for 10 minutes before checking queues again")
-                            time.sleep(600)
+                            print("Sleeping for 1 minute(s) before checking queues again")
+                            time.sleep(60)
                     else:
-                        print("Sleeping for 10 minutes before checking queues again")
-                        time.sleep(600)
+                        print("Sleeping for 1 minute(s) before checking queues again")
+                        time.sleep(60)
            
 
         if self.args.auto:
@@ -241,16 +241,16 @@ class PipeLine(object):
         except:
             print("Must specify input data!")
             sys.exit(1)
-        
         args.dataframe['user'] = args.jira_user
         
         group = args.dataframe.groupby(by=[groupby])
+
         for name,vals in group:
             # create JIRA ticket per nite and add jira_id,reqnum to dataframe
             index = args.dataframe[args.dataframe[groupby] == name].index
           
             if args.jira_summary:
-                jira_summary = args.jira_summary 
+                jira_summary = args.jira_summary
             else:
                 jira_summary = str(name)
             if args.reqnum:
@@ -264,6 +264,12 @@ class PipeLine(object):
 
             if args.ignore_jira:
                 new_reqnum,new_jira_parent = (reqnum,jira_parent)
+            elif args.assign_reqnum:
+                new_reqnum, new_jira_parent = reqnum_utils.create_ticket(args.jira_user,
+                                              summary=jira_summary,
+                                              ticket=reqnum,
+                                              parent=jira_parent,
+                                              use_existing=True)
             else:
                 # Create JIRA ticket
                 new_reqnum,new_jira_parent = jira_utils.create_ticket(args.jira_section,args.jira_user,
@@ -528,7 +534,7 @@ class WideField(PipeLine):
         #    print( "No exposures found in DB!")
         #    sys.exit(1)
         print(self.args.dataframe)
-        
+#        exit()     
         if self.args.count:
             print("Data found in database:")
          
