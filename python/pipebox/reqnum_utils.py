@@ -34,7 +34,7 @@ def use_existing_ticket(jtickets, tdict):
 def get_max_reqnum(jtickets):
     existing = pd.concat([jtickets['parent_issue'],
                           jtickets['issue_key']]).unique().tolist()
-    existing_reqnums = [int(item.split('-')[-1]) for item in existing]
+    existing_reqnums = [int(item.split('-')[-1]) for item in existing if item is not None]
     return max(existing_reqnums)
 
 
